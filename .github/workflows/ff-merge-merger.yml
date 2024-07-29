@@ -25,11 +25,11 @@ jobs:
         uses: actions/github-script@v7.0.1
         with:
           script: |
-            core.info('GS_FULL_CTX:', context);
-            core.info('GS_CTX_PAYLOAD:', context.payload);
-            core.info('GS_CTX_REPO:', context.repo);
-            core.info('GH_CTX:', JSON.stringify(${{ github }}));
-            core.info('GH_CTX_EVENT:', JSON.stringify(${{ github.event }} ));
+            console.log('GS_FULL_CTX:', context);
+            console.log('GS_CTX_PAYLOAD:', context.payload);
+            console.log('GS_CTX_REPO:', context.repo);
+            console.log('GH_CTX:', JSON.stringify(${{ github }}));
+            console.log('GH_CTX_EVENT:', JSON.stringify(${{ github.event }} ));
 
       - name: Check Comment Author 🕵️
         id: ff_merge_check_valid_commenter
