@@ -16,6 +16,10 @@ jobs:
     permissions:
       contents: read
       issues: read
+    outputs:
+        valid_commenter: ${{ steps.ff_merge_check_valid_commenter.outputs.valid_commenter }}
+        valid_comment: ${{ steps.ff_merge_check_comment_content.outputs.valid_comment }}
+        valid_label: ${{ steps.ff_merge_check_issue_labels.outputs.valid_label }}
     steps:
       - name: Debug Event
         uses: actions/github-script@v7.0.1
