@@ -17,12 +17,13 @@ jobs:
       contents: read
       issues: read
     steps:
-      - name: debug_event
+      - name: Debug Event
         uses: actions/github-script@v7.0.1
         with:
           script: |
-            console.log(JSON.stringify(github.event, null, 2))
-            console.info("GITHUB_EVENT_ISSUE_COMMENT:", ${{ github.event.issue_comment }})
+            console.log("GH_CTX_ISSUE_COMMENT:", ${{ github.event.issue_comment }});
+            console.log("GS_CTX_EVENT:", context.event);
+            console.log("GS_CTX_PAYLOAD :", context.event);
 
       - name: Check Comment Author 🕵️
         id: ff_merge_check_valid_commentor
