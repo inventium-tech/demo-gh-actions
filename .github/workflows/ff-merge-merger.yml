@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   comment_checks:
-    name: Check FF-Merge Comment
+    name: Check FF-Merge Conditions
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -33,13 +33,14 @@ jobs:
           script: |
             const commentAuthorAssociation = context.payload.comment.author_association;
             const isMember = commentAuthorAssociation === 'MEMBER';
-            console.log(isMember ? 
-              '✅ The comment author is a member of the organization.' :
-              '❌ The comment author is not a member of the organization.'
-            );
+            
+            if (isMember) {
+              core.info('✅ The comment author is a member of the organization.');
+            } else {
+              core.warning('❌ The comment author is not a member of the organization.');
+            }
 
-            if (core.isDebug()) console.log('COMMENT_AUTHOR:', commentAuthorAssociation);
-
+            core.debug('COMMENT_AUTHOR:', commentAuthorAssociation);
             core.setOutput('valid_commenter', isMember);
 
       - name: Check Comment Content 📝
@@ -50,13 +51,14 @@ jobs:
           script: |
             const commentBody = context.payload.comment.body;
             const isValidComment = commentBody === '/ff-merge';
-            console.log(isValidComment ? 
-              '✅ The comment content is valid.' :
-              '❌ The comment content is invalid. (Expected: /ff-merge)'
-            );
+            
+            if (isValidComment) {
+              core.info('✅ The comment content is valid.');
+            } else {
+              core.warning('❌ The comment content is invalid. (Expected: /ff-merge)');
+            }
 
-            if (core.isDebug()) console.log('COMMENT_BODY:', commentBody);
-
+            core.debug('COMMENT_BODY:', commentBody);
             core.setOutput('valid_comment', isValidComment);
 
       - name: Check Issue Labels 🏷️
@@ -67,11 +69,45 @@ jobs:
           script: |
             const issueLabels = context.payload.issue.labels;
             const hasFFMergeLabel = issueLabels.some((label) => label.name === 'ff-merge');
-            console.log(hasFFMergeLabel ? 
-              '✅ The issue has the "fast-forward-merge" label.' :
-              '❌ The issue does not have the "fast-forward-merge" label.'
-            );
+            
+            if (hasFFMergeLabel) {
+              core.info('✅ The issue has the "ff-merge" label.');
+            } else {
+              core.warning('❌ The issue does not have the "ff-merge" label.');
+            }
 
-            if (core.isDebug()) console.log('ISSUE_LABELS:', issueLabels);
-
+            core.debug('ISSUE_LABELS:', issueLabels.map((label) => label.name));
             core.setOutput('valid_label', hasFFMergeLabel);
+
+  exec_ff_merge:
+    name: Execute Fast-Forward Merge
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    needs: comment_checks
+    if: ${{ needs.comment_checks.outputs.valid_commenter == 'true' && needs.comment_checks.outputs.valid_comment == 'true' && needs.comment_checks.outputs.valid_label == 'true' }}
+    steps:
+      - name: Lock PR 🔒
+        id: lock_pr
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            try {
+              await github.rest.issues.lock({
+                'owner': context.repo.owner,
+                'repo': context.repo.repo,
+                'issue_number': context.issue.number,
+                'lock_reason': 'resolved',
+              });
+              console.info('PR locked:', context.payload.issue.html_url);
+            } catch (err) {
+              console.error('Error locking PR:', err);
+              core.setFailed(`Action failed with error ${err}`);
+            }
+
+      - name: Fast-Forward Merge 🚀
+        if: ${{ success() }}
+        run: |
+          echo "✅ Fast-Forward Merge completed."
+          echo "BASE_REF: ${{ github.base_ref }}"
+          echo "HEAD_REF: ${{ github.event.pull_request.head.ref }}"
