@@ -1,5 +1,5 @@
-name: ff-merge-labeler
-run-name: '🔀 FF Merge - PR #${{ github.event.issue_comment.issue.id }}'
+name: fast-forward-merger
+run-name: '🔀 FF Merge'
 
 on:
   issue_comment:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  check_comment:
+  comment_checks:
     name: Check FF-Merge Comment
     runs-on: ubuntu-latest
     permissions:
@@ -21,78 +21,57 @@ jobs:
         uses: actions/github-script@v7.0.1
         with:
           script: |
-            console.log("GH_CTX_EVENT:", ${{ github.event }});
+            console.log("%O", `${{ github.event }}`);
+            console.log("GH_CTX_EVENT:", `${{ github.event }}`);
             console.log("GH_CTX_ISSUE_COMMENT:", ${{ github.event.pull_request }});
-            console.log("GS_CTX_EVENT:", context.event);
             console.log("GS_CTX_PAYLOAD :", context.payload);
 
       - name: Check Comment Author 🕵️
-        id: ff_merge_check_valid_commentor
-        shell: bash
-        run: |
-          if [ ${{ github.event.issue_comment.comment.author_association }} == 'MEMBER' ]; then
-            echo "✅ The comment author is a member of the organization."
-            echo "valid_commentor=1" >> $GITHUB_OUTPUT
-          else
-            echo "❌ The comment author is not a member of the organization. (Expected: MEMBER)"
-            echo "valid_commentor=0" >> $GITHUB_OUTPUT
-          fi;
+        id: ff_merge_check_valid_commenter
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            const commentAuthorAssociation = context.payload.comment.author_association;
+            const isMember = commentAuthorAssociation === 'MEMBER';
+            console.log(isMember ? 
+              '✅ The comment author is a member of the organization.' :
+              '❌ The comment author is not a member of the organization.'
+            );
+
+            if (core.isDebug()) console.log('COMMENT_AUTHOR:', commentAuthorAssociation);
+
+            core.setOutput('valid_commenter', isMember);
 
       - name: Check Comment Content 📝
         id: ff_merge_check_comment_content
-        if: ${{ success() }}
-        shell: bash
-        run: |
-          if [ ${{ github.event.issue_comment.comment.body }} == '/ff-merge' ]; then
-            echo "✅ The comment content is valid."
-            echo "valid_comment=1" >> $GITHUB_OUTPUT
-          else
-            echo "❌ The comment content is invalid. (Expected: /ff-merge)"
-            echo "valid_comment=0" >> $GITHUB_OUTPUT
-          fi;
+        if: ${{ steps.ff_merge_check_valid_commenter.outputs.valid_commenter }}
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            const commentBody = context.payload.comment.body;
+            const isValidComment = commentBody === '/ff-merge';
+            console.log(isValidComment ? 
+              '✅ The comment content is valid.' :
+              '❌ The comment content is invalid. (Expected: /ff-merge)'
+            );
+
+            if (core.isDebug()) console.log('COMMENT_BODY:', commentBody);
+
+            core.setOutput('valid_comment', isValidComment);
 
       - name: Check Issue Labels 🏷️
         id: ff_merge_check_issue_labels
-        if: ${{ success() }}
-        shell: bash
-        run: |
-          if [ $(echo ${{ github.event.issue.labels }} | grep -c 'ff-merge') -eq 0 ]; then
-            echo "❌ The issue does not have the 'fast-forward-merge' label."
-            echo "valid_label=0" >> $GITHUB_OUTPUT
-          else
-            echo "✅ The issue has the 'fast-forward-merge' label."
-            echo "valid_label=1" >> $GITHUB_OUTPUT
-          fi;
-
-  exec_ff_merge:
-    name: Execute Fast-Forward Merge
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      issues: write
-      pull-requests: write
-    needs: check_comment
-    if: ${{ needs.check_comment.outputs.valid_commentor == '1' && needs.check_comment.outputs.valid_comment == '1' }}
-    steps:
-      - name: Checkout 💻
-        uses: actions/checkout@v4.1.7
-        with:
-          fetch-depth: 0
-
-      - name: Lock PR 🔒
+        if: ${{ steps.ff_merge_check_comment_content.outputs.valid_comment }}
         uses: actions/github-script@v7.0.1
-        id: lock_pr
         with:
           script: |
-            await github.rest.issues.lock({
-              'owner': context.repo.owner,
-              'repo': context.repo.repo,
-              'issue_number': context.issue.number,
-              'lock_reason': 'resolved',
-            });
-            conosle.info('PR locked:', ${{ github.event.issue_comment.issue.html_url }});
+            const issueLabels = context.payload.issue.labels;
+            const hasFFMergeLabel = issueLabels.some((label) => label.name === 'ff-merge');
+            console.log(hasFFMergeLabel ? 
+              '✅ The issue has the "fast-forward-merge" label.' :
+              '❌ The issue does not have the "fast-forward-merge" label.'
+            );
 
-      - name: Fast-Forward Merge 🚀
-        if: ${{ success() }}
-        run: |
-          echo "✅ Fast-Forward Merge ready."
+            if (core.isDebug()) console.log('ISSUE_LABELS:', issueLabels);
+
+            core.setOutput('valid_label', hasFFMergeLabel);
